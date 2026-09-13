@@ -5,7 +5,7 @@ import sqlite3
 # -----------------------------------------------------------------------------
 # 1. KONFIGURASI DAN KONEKSI DATABASE LOKAL (SQLITE)
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="LMS Sekolah Digital", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="LMS Bismind Sesi Kopi", page_icon="🎓", layout="wide")
 
 DB_FILE = "lms_database.db"
 
@@ -50,7 +50,7 @@ def init_db():
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO users VALUES ('guru1', '12345', 'Pak Budi', 'Guru')")
         c.execute("INSERT INTO users VALUES ('siswa1', '12345', 'Siti', 'Siswa')")
-        c.execute("INSERT INTO materi (judul, link, tanggal) VALUES ('Matematika Dasar', 'https://drive.google.com', '2026-09-13')")
+        c.execute("INSERT INTO materi (judul, link, tanggal) VALUES ('Materi Pengenalan Bismind', 'https://drive.google.com', '2026-09-13')")
         conn.commit()
         
     conn.close()
@@ -85,7 +85,21 @@ if 'user_info' not in st.session_state:
 # 3. HALAMAN LOGIN & REGISTRASI
 # -----------------------------------------------------------------------------
 if not st.session_state['logged_in']:
-    st.title("🎓 Portal LMS Sekolah Digital")
+    
+    # Header Tampilan dengan Logo Custom
+    col_logo, col_title = st.columns([1, 5])
+    
+    with col_logo:
+        try:
+            # Memanggil Logo.png sesuai nama file di GitHub (L kapital)
+            st.image("Logo.png", width=110)
+        except:
+            st.write("🎓")
+            
+    with col_title:
+        st.markdown("<h1 style='padding-top: 10px;'>LMS Bismind Sesi Kopi</h1>", unsafe_allow_html=True)
+        
+    st.divider()
     
     tab1, tab2 = st.tabs(["🔑 Login", "📝 Daftar Akun Siswa"])
     
@@ -141,7 +155,7 @@ else:
         
     # --- DASHBOARD GURU ---
     if str(role).lower() == 'guru':
-        st.title("👨‍🏫 Dashboard Guru")
+        st.title("👨‍🏫 Dashboard Guru - LMS Bismind Sesi Kopi")
         
         menu_guru = st.selectbox("Pilih Menu Guru", ["Daftar Materi", "Tambah Materi", "Daftar Tugas Siswa"])
         
@@ -167,7 +181,7 @@ else:
 
     # --- DASHBOARD SISWA ---
     else:
-        st.title("👨‍🎓 Dashboard Siswa")
+        st.title("👨‍🎓 Dashboard Siswa - LMS Bismind Sesi Kopi")
         
         menu_siswa = st.selectbox("Pilih Menu Siswa", ["Lihat Materi", "Kumpul Tugas"])
         
