@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import base64
-import os
 
 # -----------------------------------------------------------------------------
 # 1. KONFIGURASI DAN KONEKSI DATABASE LOKAL (SQLITE)
@@ -12,10 +11,7 @@ st.set_page_config(page_title="LMS Sertifikasi Bismind Universitas Karangturi Se
 DB_FILE = "lms_database.db"
 
 def init_db():
-    """Membuat database dan direktori upload jika belum ada"""
-    if not os.path.exists("uploads"):
-        os.makedirs("uploads")
-        
+    """Membuat database dan data awal jika belum ada"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -49,7 +45,7 @@ def init_db():
         )
     ''')
     
-    # Buat Tabel Tugas (Ditambahkan tipe pengumpulan)
+    # Buat Tabel Tugas
     c.execute('''
         CREATE TABLE IF NOT EXISTS tugas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -65,7 +61,7 @@ def init_db():
     except:
         pass
 
-    # Inisialisasi Akun Bawaan
+    # Inisialisasi Akun Bawaan jika DB masih kosong
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO users VALUES ('guru1', '12345', 'Pak Budi (Super Admin)', 'Super Admin', 'Aktif')")
@@ -95,7 +91,7 @@ def execute_query(query, params=()):
     conn.close()
 
 def get_image_base64(path):
-    """Fungsi pembantu untuk meletakkan gambar di tengah menggunakan HTML"""
+    """Fungsi pembantu untuk menampilkan logo"""
     try:
         with open(path, "rb") as image_file:
             encoded_string = base64.b64encode(image_file.read()).decode()
@@ -243,7 +239,6 @@ else:
             if df_materi.empty:
                 st.info("Belum ada materi.")
             else:
-                # Bersihkan teks judul
                 df_materi['judul'] = df_materi['judul'].apply(lambda x: str(x).replace('*', '').strip())
                 st.dataframe(
                     df_materi[['judul', 'link', 'tanggal']], 
@@ -353,21 +348,21 @@ else:
                     st.rerun()
                 
         elif menu_guru == "Daftar Tugas Siswa":
-            st.subheader("Tugas yang Dikumpulkan Siswa")
+            st.subheader("📋 Daftar Tugas yang Dikumpulkan Siswa")
             df_tugas = run_query("SELECT nama_siswa, judul_tugas, link_tugas, nilai FROM tugas")
             
             if df_tugas.empty:
-                st.info("Belum ada tugas yang dikumpulkan siswa.")
+                st.info("Belum ada tugas yang dikumpulkan oleh siswa.")
             else:
                 st.dataframe(
                     df_tugas, 
                     hide_index=True, 
                     use_container_width=True,
                     column_config={
-                        "link_tugas": st.column_config.LinkColumn("Link / File Tugas"),
                         "nama_siswa": "Nama Siswa",
                         "judul_tugas": "Judul Tugas",
-                        "nilai": "Status/Nilai"
+                        "link_tugas": st.column_config.LinkColumn("Link Tugas Siswa", display_text="📖 Buka Link Tugas"),
+                        "nilai": "Status / Nilai"
                     }
                 )
 
@@ -400,7 +395,6 @@ else:
                 st.write("#### Daftar Modul Pelajaran:")
                 for idx, row in df_materi.iterrows():
                     m_id = row['id']
-                    # Pembersihan karakter bintang agar selalu tercetak bold tanpa cacat
                     m_judul = str(row['judul']).replace('*', '').strip()
                     m_link = row['link']
                     m_tgl = row['tanggal']
@@ -435,26 +429,15 @@ else:
                 
         elif menu_siswa == "Kumpul Tugas":
             st.subheader("📤 Form Pengumpulan Tugas")
+            st.info("ℹ️ Pastikan link tugas Anda (Google Drive, Docs, Canva, dll) sudah diatur aksesnya ke 'Siapa saja yang memiliki link' / 'Public' sebelum dikirim.")
+            
             judul_tugas = st.text_input("Judul Tugas / Modul")
-            
-            metode_kumpul = st.radio("Pilih Metode Pengumpulan:", ["Upload File Dokumen (PDF/Word/Gambar/Zip)", "Kirim Link (Google Drive / GitHub / URL)"])
-            
-            link_final = ""
-            
-            if metode_kumpul == "Upload File Dokumen (PDF/Word/Gambar/Zip)":
-                uploaded_file = st.file_uploader("Pilih File Tugas", type=['pdf', 'docx', 'doc', 'jpg', 'png', 'zip', 'rar', 'pptx'])
-                if uploaded_file is not None:
-                    file_path = os.path.join("uploads", f"{username}_{uploaded_file.name}")
-                    with open(file_path, "wb") as f:
-                        f.write(uploaded_file.getbuffer())
-                    link_final = file_path
-            else:
-                link_final = st.text_input("Masukkan URL / Link Tugas")
+            link_tugas = st.text_input("Link Tugas (Paste URL Google Drive / GitHub / PDF di sini)")
 
             if st.button("Kirim Tugas Sekarang"):
-                if judul_tugas and link_final:
+                if judul_tugas.strip() and link_tugas.strip():
                     execute_query("INSERT INTO tugas (nama_siswa, judul_tugas, link_tugas, nilai) VALUES (?, ?, ?, 'Belum Dinilai')", 
-                                  (nama, judul_tugas, link_final))
+                                  (nama, judul_tugas.strip(), link_tugas.strip()))
                     st.success("🎉 Tugas Anda berhasil terkirim!")
                 else:
-                    st.warning("Mohon isi judul tugas dan upload file atau sertakan link tugas Anda!")
+                    st.warning("Mohon isi Judul Tugas dan Link Tugas Anda!")
