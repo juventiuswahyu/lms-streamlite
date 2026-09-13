@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import base64
+import os
 
 # -----------------------------------------------------------------------------
 # 1. KONFIGURASI DAN KONEKSI DATABASE LOKAL (SQLITE)
@@ -11,7 +12,10 @@ st.set_page_config(page_title="LMS Sertifikasi Bismind Universitas Karangturi Se
 DB_FILE = "lms_database.db"
 
 def init_db():
-    """Membuat database dan data awal jika belum ada"""
+    """Membuat database dan direktori upload jika belum ada"""
+    if not os.path.exists("uploads"):
+        os.makedirs("uploads")
+        
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
@@ -45,7 +49,7 @@ def init_db():
         )
     ''')
     
-    # Buat Tabel Tugas
+    # Buat Tabel Tugas (Ditambahkan tipe pengumpulan)
     c.execute('''
         CREATE TABLE IF NOT EXISTS tugas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -239,6 +243,8 @@ else:
             if df_materi.empty:
                 st.info("Belum ada materi.")
             else:
+                # Bersihkan teks judul
+                df_materi['judul'] = df_materi['judul'].apply(lambda x: str(x).replace('*', '').strip())
                 st.dataframe(
                     df_materi[['judul', 'link', 'tanggal']], 
                     hide_index=True, 
@@ -258,7 +264,8 @@ else:
             
             if st.button("Simpan Materi"):
                 if judul:
-                    execute_query("INSERT INTO materi (judul, link, tanggal) VALUES (?, ?, ?)", (judul, link, str(tgl)))
+                    clean_judul = judul.replace('*', '').strip()
+                    execute_query("INSERT INTO materi (judul, link, tanggal) VALUES (?, ?, ?)", (clean_judul, link, str(tgl)))
                     st.success("Materi berhasil ditambahkan!")
                     st.rerun()
                 else:
@@ -348,17 +355,21 @@ else:
         elif menu_guru == "Daftar Tugas Siswa":
             st.subheader("Tugas yang Dikumpulkan Siswa")
             df_tugas = run_query("SELECT nama_siswa, judul_tugas, link_tugas, nilai FROM tugas")
-            st.dataframe(
-                df_tugas, 
-                hide_index=True, 
-                use_container_width=True,
-                column_config={
-                    "link_tugas": st.column_config.LinkColumn("Link Tugas"),
-                    "nama_siswa": "Nama Siswa",
-                    "judul_tugas": "Judul Tugas",
-                    "nilai": "Status/Nilai"
-                }
-            )
+            
+            if df_tugas.empty:
+                st.info("Belum ada tugas yang dikumpulkan siswa.")
+            else:
+                st.dataframe(
+                    df_tugas, 
+                    hide_index=True, 
+                    use_container_width=True,
+                    column_config={
+                        "link_tugas": st.column_config.LinkColumn("Link / File Tugas"),
+                        "nama_siswa": "Nama Siswa",
+                        "judul_tugas": "Judul Tugas",
+                        "nilai": "Status/Nilai"
+                    }
+                )
 
     # --- DASHBOARD SISWA ---
     else:
@@ -389,7 +400,8 @@ else:
                 st.write("#### Daftar Modul Pelajaran:")
                 for idx, row in df_materi.iterrows():
                     m_id = row['id']
-                    m_judul = row['judul']
+                    # Pembersihan karakter bintang agar selalu tercetak bold tanpa cacat
+                    m_judul = str(row['judul']).replace('*', '').strip()
                     m_link = row['link']
                     m_tgl = row['tanggal']
                     
@@ -398,7 +410,6 @@ else:
                     col_status, col_info, col_link = st.columns([1, 4, 2])
                     
                     with col_status:
-                        # Menggunakan gabungan m_id dan idx agar key selalu unik
                         check = st.checkbox("Selesai", value=is_completed, key=f"check_{m_id}_{idx}")
                         if check != is_completed:
                             if check:
@@ -423,14 +434,27 @@ else:
                     st.divider()
                 
         elif menu_siswa == "Kumpul Tugas":
-            st.subheader("Form Pengumpulkan Tugas")
-            judul_tugas = st.text_input("Judul Tugas")
-            link_tugas = st.text_input("Link Tugas (Google Drive / GitHub / PDF)")
+            st.subheader("📤 Form Pengumpulan Tugas")
+            judul_tugas = st.text_input("Judul Tugas / Modul")
             
-            if st.button("Kirim Tugas"):
-                if judul_tugas and link_tugas:
+            metode_kumpul = st.radio("Pilih Metode Pengumpulan:", ["Upload File Dokumen (PDF/Word/Gambar/Zip)", "Kirim Link (Google Drive / GitHub / URL)"])
+            
+            link_final = ""
+            
+            if metode_kumpul == "Upload File Dokumen (PDF/Word/Gambar/Zip)":
+                uploaded_file = st.file_uploader("Pilih File Tugas", type=['pdf', 'docx', 'doc', 'jpg', 'png', 'zip', 'rar', 'pptx'])
+                if uploaded_file is not None:
+                    file_path = os.path.join("uploads", f"{username}_{uploaded_file.name}")
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    link_final = file_path
+            else:
+                link_final = st.text_input("Masukkan URL / Link Tugas")
+
+            if st.button("Kirim Tugas Sekarang"):
+                if judul_tugas and link_final:
                     execute_query("INSERT INTO tugas (nama_siswa, judul_tugas, link_tugas, nilai) VALUES (?, ?, ?, 'Belum Dinilai')", 
-                                  (nama, judul_tugas, link_tugas))
-                    st.success("Tugas Anda berhasil terkirim!")
+                                  (nama, judul_tugas, link_final))
+                    st.success("🎉 Tugas Anda berhasil terkirim!")
                 else:
-                    st.warning("Lengkapi Judul Tugas dan Link Tugas!")
+                    st.warning("Mohon isi judul tugas dan upload file atau sertakan link tugas Anda!")
