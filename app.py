@@ -5,7 +5,7 @@ import sqlite3
 # -----------------------------------------------------------------------------
 # 1. KONFIGURASI DAN KONEKSI DATABASE LOKAL (SQLITE)
 # -----------------------------------------------------------------------------
-st.set_page_config(page_title="LMS Bismind Sesi Kopi", page_icon="🎓", layout="wide")
+st.set_page_config(page_title="LMS Sertifikasi Bismind Universitas Karangturi Semarang", page_icon="🎓", layout="wide")
 
 DB_FILE = "lms_database.db"
 
@@ -82,22 +82,25 @@ if 'user_info' not in st.session_state:
     st.session_state['user_info'] = {}
 
 # -----------------------------------------------------------------------------
-# 3. HALAMAN LOGIN & REGISTRASI
+# 3. HALAMAN LOGIN & REGISTRASI (LOGO DI PERBESAR & CENTER)
 # -----------------------------------------------------------------------------
 if not st.session_state['logged_in']:
     
-    # Header Tampilan dengan Logo Custom
-    col_logo, col_title = st.columns([1, 5])
+    # Membuat Layout Center untuk Logo dan Judul
+    col_left, col_center, col_right = st.columns([1, 2, 1])
     
-    with col_logo:
+    with col_center:
         try:
-            # Memanggil Logo.png sesuai nama file di GitHub (L kapital)
-            st.image("Logo.png", width=110)
+            # Memanggil Logo.png (Ukuran diperbesar menjadi 250px dan di-center)
+            st.image("Logo.png", width=250, use_container_width=False)
         except:
-            st.write("🎓")
+            st.markdown("<h1 style='text-align: center;'>🎓</h1>", unsafe_allow_html=True)
             
-    with col_title:
-        st.markdown("<h1 style='padding-top: 10px;'>LMS Bismind Sesi Kopi</h1>", unsafe_allow_html=True)
+        # Judul di bawah logo rata tengah
+        st.markdown(
+            "<h2 style='text-align: center; margin-top: 15px;'>LMS Sertifikasi Bismind<br>Universitas Karangturi Semarang</h2>", 
+            unsafe_allow_html=True
+        )
         
     st.divider()
     
@@ -155,7 +158,8 @@ else:
         
     # --- DASHBOARD GURU ---
     if str(role).lower() == 'guru':
-        st.title("👨‍🏫 Dashboard Guru - LMS Bismind Sesi Kopi")
+        st.title("👨‍🏫 Dashboard Guru")
+        st.caption("LMS Sertifikasi Bismind - Universitas Karangturi Semarang")
         
         menu_guru = st.selectbox("Pilih Menu Guru", ["Daftar Materi", "Tambah Materi", "Daftar Tugas Siswa"])
         
@@ -181,7 +185,8 @@ else:
 
     # --- DASHBOARD SISWA ---
     else:
-        st.title("👨‍🎓 Dashboard Siswa - LMS Bismind Sesi Kopi")
+        st.title("👨‍🎓 Dashboard Siswa")
+        st.caption("LMS Sertifikasi Bismind - Universitas Karangturi Semarang")
         
         menu_siswa = st.selectbox("Pilih Menu Siswa", ["Lihat Materi", "Kumpul Tugas"])
         
