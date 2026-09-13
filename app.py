@@ -46,12 +46,13 @@ def init_db():
         )
     ''')
     
-    # Isi data akun awal jika masih kosong
+    # Inisialisasi Akun Bawaan (Super Admin & Siswa Contoh)
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
-        c.execute("INSERT INTO users VALUES ('guru1', '12345', 'Pak Budi', 'Guru')")
+        c.execute("INSERT INTO users VALUES ('guru1', '12345', 'Pak Budi (Super Admin)', 'Super Admin')")
+        c.execute("INSERT INTO users VALUES ('guru2', '12345', 'Pak Pengajar', 'Guru')")
         c.execute("INSERT INTO users VALUES ('siswa1', '12345', 'Siti', 'Siswa')")
-        c.execute("INSERT INTO materi (judul, link, tanggal) VALUES ('Modul 1 Sertifikasi Bismind', 'https://drive.google.com', '2026-09-13')")
+        c.execute("INSERT INTO materi (judul, link, tanggal) VALUES ('Dasar-Dasar Barista', 'https://drive.google.com', '2026-09-13')")
         conn.commit()
         
     conn.close()
@@ -98,13 +99,12 @@ if not st.session_state['logged_in']:
     
     img_base64 = get_image_base64("Logo.png")
     
-    # CSS & HTML Judul dengan Font Tegas & Bold
     title_html = """
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&display=swap');
         .main-title {
             font-family: 'Montserrat', 'Arial Black', sans-serif;
-            font-size: 32px;
+            font-size: 30px;
             font-weight: 900;
             color: #111111;
             text-align: center;
@@ -185,76 +185,123 @@ if not st.session_state['logged_in']:
 # 4. DASHBOARD UTAMA (SETELAH LOGIN)
 # -----------------------------------------------------------------------------
 else:
+    username = st.session_state['user_info'].get('username', '')
     role = st.session_state['user_info'].get('role', 'Siswa')
     nama = st.session_state['user_info'].get('nama', 'User')
     
+    # Cek status Super Admin
+    is_super_admin = (username == 'guru1') or (role == 'Super Admin')
+    
     # Sidebar Navigation
     st.sidebar.title(f"Selamat Datang, {nama}!")
-    st.sidebar.write(f"**Role:** {role}")
+    st.sidebar.write(f"**Hak Akses:** {'Super Admin 🔑' if is_super_admin else role}")
     
     if st.sidebar.button("Logout"):
         st.session_state['logged_in'] = False
         st.session_state['user_info'] = {}
         st.rerun()
         
-    # --- DASHBOARD GURU ---
-    if str(role).lower() == 'guru':
-        st.title("👨‍🏫 Dashboard Guru")
+    # --- DASHBOARD GURU & SUPER ADMIN ---
+    if 'guru' in str(role).lower() or is_super_admin:
+        st.title("👨‍🏫 Dashboard Pengajar / Admin")
         st.caption("LMS Sertifikasi Bismind - Universitas Karangturi Semarang")
         
-        menu_guru = st.selectbox("Pilih Menu Guru", ["Daftar Materi", "Tambah Materi", "Kelola / Hapus Materi", "Daftar Tugas Siswa"])
+        # Menu khusus untuk Super Admin
+        menu_options = ["Daftar Materi", "Tambah Materi"]
+        if is_super_admin:
+            menu_options.extend(["✏️ Edit Manual Materi", "🗑️ Hapus Materi", "Daftar Tugas Siswa"])
+        else:
+            menu_options.append("Daftar Tugas Siswa")
+            
+        menu_guru = st.selectbox("Pilih Menu", menu_options)
         
+        # --- TABEL MATERI DENGAN TAMPILAN BERSIH ---
         if menu_guru == "Daftar Materi":
             st.subheader("Materi Pelajaran Aktif")
-            df_materi = run_query("SELECT * FROM materi")
-            st.dataframe(df_materi, use_container_width=True)
+            df_materi = run_query("SELECT id, judul, link, tanggal FROM materi")
+            
+            if df_materi.empty:
+                st.info("Belum ada materi.")
+            else:
+                st.dataframe(
+                    df_materi[['judul', 'link', 'tanggal']], 
+                    hide_index=True, 
+                    use_container_width=True,
+                    column_config={
+                        "link": st.column_config.LinkColumn("Link Materi"),
+                        "judul": "Judul Pelajaran",
+                        "tanggal": "Tanggal Upload"
+                    }
+                )
             
         elif menu_guru == "Tambah Materi":
             st.subheader("Tambah Materi Baru")
             judul = st.text_input("Judul Materi")
-            link = st.text_input("Link Materi (Google Drive / YouTube / PDF)")
+            link = st.text_input("Link Materi (URL Google Drive / Youtube / PDF)")
             tgl = st.date_input("Tanggal Upload")
             
             if st.button("Simpan Materi"):
-                execute_query("INSERT INTO materi (judul, link, tanggal) VALUES (?, ?, ?)", (judul, link, str(tgl)))
-                st.success("Materi berhasil ditambahkan!")
+                if judul:
+                    execute_query("INSERT INTO materi (judul, link, tanggal) VALUES (?, ?, ?)", (judul, link, str(tgl)))
+                    st.success("Materi berhasil ditambahkan!")
+                    st.rerun()
+                else:
+                    st.warning("Judul materi wajib diisi!")
+
+        # --- MENU KHUSUS EDIT MANUAL (EXCEL STYLE) UNTUK SUPER ADMIN (GURU1) ---
+        elif menu_guru == "✏️ Edit Manual Materi" and is_super_admin:
+            st.subheader("✏️ Edit Manual Data Materi (Super Admin)")
+            st.caption("Anda dapat mengubah judul, link, atau tanggal secara langsung pada sel tabel di bawah, lalu klik Simpan.")
+            
+            df_materi = run_query("SELECT id, judul, link, tanggal FROM materi")
+            
+            # Form Interaktif seperti Google Sheets / Excel
+            edited_df = st.data_editor(
+                df_materi, 
+                hide_index=True, 
+                use_container_width=True,
+                disabled=["id"],
+                key="editor_materi"
+            )
+            
+            if st.button("Simpan Perubahan Tabel"):
+                conn = sqlite3.connect(DB_FILE)
+                edited_df.to_sql("materi", conn, if_exists="replace", index=False)
+                conn.close()
+                st.success("Perubahan data materi berhasil disimpan!")
                 st.rerun()
 
-        elif menu_guru == "Kelola / Hapus Materi":
-            st.subheader("Hapus / Edit Materi")
+        # --- MENU KHUSUS HAPUS MATERI UNTUK SUPER ADMIN (GURU1) ---
+        elif menu_guru == "🗑️ Hapus Materi" and is_super_admin:
+            st.subheader("🗑️ Hapus Materi Pelajaran")
             df_materi = run_query("SELECT * FROM materi")
             
             if df_materi.empty:
-                st.info("Belum ada materi yang tersedia.")
+                st.info("Belum ada materi.")
             else:
-                # Pilih materi berdasarkan judul
                 materi_list = df_materi['judul'].tolist()
-                pilihan_materi = st.selectbox("Pilih Materi yang Ingin Dikelola", materi_list)
-                
+                pilihan_materi = st.selectbox("Pilih Materi yang Akan Dihapus", materi_list)
                 selected_row = df_materi[df_materi['judul'] == pilihan_materi].iloc[0]
                 
-                col_edit, col_delete = st.columns(2)
-                
-                with col_delete:
-                    st.write("### 🗑️ Hapus Materi")
-                    if st.button(f"Hapus Materi '{pilihan_materi}'", type="primary"):
-                        execute_query("DELETE FROM materi WHERE id=?", (int(selected_row['id']),))
-                        st.success("Materi berhasil dihapus!")
-                        st.rerun()
-
-                with col_edit:
-                    st.write("### ✏️ Edit Materi")
-                    edit_judul = st.text_input("Judul Baru", value=selected_row['judul'])
-                    edit_link = st.text_input("Link Baru", value=selected_row['link'])
-                    if st.button("Update Materi"):
-                        execute_query("UPDATE materi SET judul=?, link=? WHERE id=?", (edit_judul, edit_link, int(selected_row['id'])))
-                        st.success("Materi berhasil diperbarui!")
-                        st.rerun()
+                if st.button(f"Hapus Permanen '{pilihan_materi}'", type="primary"):
+                    execute_query("DELETE FROM materi WHERE id=?", (int(selected_row['id']),))
+                    st.success("Materi berhasil dihapus!")
+                    st.rerun()
                 
         elif menu_guru == "Daftar Tugas Siswa":
             st.subheader("Tugas yang Dikumpulkan Siswa")
-            df_tugas = run_query("SELECT * FROM tugas")
-            st.dataframe(df_tugas, use_container_width=True)
+            df_tugas = run_query("SELECT nama_siswa, judul_tugas, link_tugas, nilai FROM tugas")
+            st.dataframe(
+                df_tugas, 
+                hide_index=True, 
+                use_container_width=True,
+                column_config={
+                    "link_tugas": st.column_config.LinkColumn("Link Tugas"),
+                    "nama_siswa": "Nama Siswa",
+                    "judul_tugas": "Judul Tugas",
+                    "nilai": "Status/Nilai"
+                }
+            )
 
     # --- DASHBOARD SISWA ---
     else:
@@ -265,8 +312,17 @@ else:
         
         if menu_siswa == "Lihat Materi":
             st.subheader("Materi Pelajaran")
-            df_materi = run_query("SELECT * FROM materi")
-            st.dataframe(df_materi, use_container_width=True)
+            df_materi = run_query("SELECT judul, link, tanggal FROM materi")
+            st.dataframe(
+                df_materi, 
+                hide_index=True, 
+                use_container_width=True,
+                column_config={
+                    "link": st.column_config.LinkColumn("Link Materi"),
+                    "judul": "Judul Pelajaran",
+                    "tanggal": "Tanggal Upload"
+                }
+            )
                 
         elif menu_siswa == "Kumpul Tugas":
             st.subheader("Form Pengumpulan Tugas")
@@ -274,6 +330,9 @@ else:
             link_tugas = st.text_input("Link Tugas (Google Drive / GitHub / PDF)")
             
             if st.button("Kirim Tugas"):
-                execute_query("INSERT INTO tugas (nama_siswa, judul_tugas, link_tugas, nilai) VALUES (?, ?, ?, 'Belum Dinilai')", 
-                              (nama, judul_tugas, link_tugas))
-                st.success("Tugas Anda berhasil terkirim!")
+                if judul_tugas and link_tugas:
+                    execute_query("INSERT INTO tugas (nama_siswa, judul_tugas, link_tugas, nilai) VALUES (?, ?, ?, 'Belum Dinilai')", 
+                                  (nama, judul_tugas, link_tugas))
+                    st.success("Tugas Anda berhasil terkirim!")
+                else:
+                    st.warning("Lengkapi Judul Tugas dan Link Tugas!")
