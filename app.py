@@ -92,20 +92,40 @@ if 'user_info' not in st.session_state:
     st.session_state['user_info'] = {}
 
 # -----------------------------------------------------------------------------
-# 3. HALAMAN LOGIN & REGISTRASI (LOGO & TEKS FULL CENTER)
+# 3. HALAMAN LOGIN & REGISTRASI (FONT LEBIH TEGAS)
 # -----------------------------------------------------------------------------
 if not st.session_state['logged_in']:
     
     img_base64 = get_image_base64("Logo.png")
+    
+    # CSS & HTML Judul dengan Font Tegas & Bold
+    title_html = """
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@800;900&display=swap');
+        .main-title {
+            font-family: 'Montserrat', 'Arial Black', sans-serif;
+            font-size: 32px;
+            font-weight: 900;
+            color: #111111;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            line-height: 1.3;
+        }
+    </style>
+    """
+    st.markdown(title_html, unsafe_allow_html=True)
     
     if img_base64:
         st.markdown(
             f"""
             <div style="text-align: center;">
                 <img src="{img_base64}" width="260" style="margin-bottom: 10px;">
-                <h2 style="margin-top: 5px; font-weight: 700; color: #1E1E1E;">
-                    LMS Sertifikasi Bismind<br>Universitas Karangturi Semarang
-                </h2>
+                <div class="main-title">
+                    LMS SERTIFIKASI BISMIND<br>UNIVERSITAS KARANGTURI SEMARANG
+                </div>
             </div>
             """,
             unsafe_allow_html=True
@@ -115,9 +135,9 @@ if not st.session_state['logged_in']:
             """
             <div style="text-align: center;">
                 <h1 style="font-size: 80px; margin-bottom: 0;">🎓</h1>
-                <h2 style="margin-top: 5px; font-weight: 700;">
-                    LMS Sertifikasi Bismind<br>Universitas Karangturi Semarang
-                </h2>
+                <div class="main-title">
+                    LMS SERTIFIKASI BISMIND<br>UNIVERSITAS KARANGTURI SEMARANG
+                </div>
             </div>
             """,
             unsafe_allow_html=True
