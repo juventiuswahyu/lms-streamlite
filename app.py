@@ -35,6 +35,15 @@ def init_db():
         )
     ''')
     
+    # Buat Tabel Progress Siswa
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS progress_siswa (
+            username TEXT,
+            materi_id INTEGER,
+            PRIMARY KEY (username, materi_id)
+        )
+    ''')
+    
     # Buat Tabel Tugas
     c.execute('''
         CREATE TABLE IF NOT EXISTS tugas (
@@ -206,7 +215,6 @@ else:
         st.title("👨‍🏫 Dashboard Pengajar / Admin")
         st.caption("LMS Sertifikasi Bismind - Universitas Karangturi Semarang")
         
-        # Menu khusus untuk Super Admin
         menu_options = ["Daftar Materi", "Tambah Materi"]
         if is_super_admin:
             menu_options.extend(["✏️ Edit Manual Materi", "🗑️ Hapus Materi", "Daftar Tugas Siswa"])
@@ -248,14 +256,13 @@ else:
                 else:
                     st.warning("Judul materi wajib diisi!")
 
-        # --- MENU KHUSUS EDIT MANUAL (EXCEL STYLE) UNTUK SUPER ADMIN (GURU1) ---
+        # --- MENU EDIT MANUAL (GURU1 / SUPER ADMIN) ---
         elif menu_guru == "✏️ Edit Manual Materi" and is_super_admin:
             st.subheader("✏️ Edit Manual Data Materi (Super Admin)")
-            st.caption("Anda dapat mengubah judul, link, atau tanggal secara langsung pada sel tabel di bawah, lalu klik Simpan.")
+            st.caption("Ubah data materi langsung pada tabel di bawah lalu klik Simpan.")
             
             df_materi = run_query("SELECT id, judul, link, tanggal FROM materi")
             
-            # Form Interaktif seperti Google Sheets / Excel
             edited_df = st.data_editor(
                 df_materi, 
                 hide_index=True, 
@@ -271,7 +278,7 @@ else:
                 st.success("Perubahan data materi berhasil disimpan!")
                 st.rerun()
 
-        # --- MENU KHUSUS HAPUS MATERI UNTUK SUPER ADMIN (GURU1) ---
+        # --- MENU HAPUS MATERI (GURU1 / SUPER ADMIN) ---
         elif menu_guru == "🗑️ Hapus Materi" and is_super_admin:
             st.subheader("🗑️ Hapus Materi Pelajaran")
             df_materi = run_query("SELECT * FROM materi")
@@ -285,6 +292,7 @@ else:
                 
                 if st.button(f"Hapus Permanen '{pilihan_materi}'", type="primary"):
                     execute_query("DELETE FROM materi WHERE id=?", (int(selected_row['id']),))
+                    execute_query("DELETE FROM progress_siswa WHERE materi_id=?", (int(selected_row['id']),))
                     st.success("Materi berhasil dihapus!")
                     st.rerun()
                 
@@ -303,29 +311,71 @@ else:
                 }
             )
 
-    # --- DASHBOARD SISWA ---
+    # --- DASHBOARD SISWA (DENGAN PROGRESS TRACKER) ---
     else:
         st.title("👨‍🎓 Dashboard Siswa")
         st.caption("LMS Sertifikasi Bismind - Universitas Karangturi Semarang")
         
-        menu_siswa = st.selectbox("Pilih Menu Siswa", ["Lihat Materi", "Kumpul Tugas"])
+        menu_siswa = st.selectbox("Pilih Menu Siswa", ["Lihat Materi & Progress", "Kumpul Tugas"])
         
-        if menu_siswa == "Lihat Materi":
-            st.subheader("Materi Pelajaran")
-            df_materi = run_query("SELECT judul, link, tanggal FROM materi")
-            st.dataframe(
-                df_materi, 
-                hide_index=True, 
-                use_container_width=True,
-                column_config={
-                    "link": st.column_config.LinkColumn("Link Materi"),
-                    "judul": "Judul Pelajaran",
-                    "tanggal": "Tanggal Upload"
-                }
-            )
+        if menu_siswa == "Lihat Materi & Progress":
+            st.subheader("📚 Materi Pelajaran & Progress Belajar")
+            
+            df_materi = run_query("SELECT id, judul, link, tanggal FROM materi")
+            df_progress = run_query("SELECT materi_id FROM progress_siswa WHERE username=?", (username,))
+            completed_ids = set(df_progress['materi_id'].tolist()) if not df_progress.empty else set()
+            
+            total_materi = len(df_materi)
+            completed_count = len(completed_ids.intersection(set(df_materi['id'].tolist()))) if total_materi > 0 else 0
+            
+            # Perhitungan Persentase Progress
+            progress_percent = int((completed_count / total_materi) * 100) if total_materi > 0 else 0
+            
+            # Tampilan Widget Progress Bar
+            st.markdown(f"### 📈 Progress Sertifikasi Anda: **{progress_percent}%** ({completed_count}/{total_materi} Materi Selesai)")
+            st.progress(progress_percent / 100)
+            st.divider()
+            
+            if df_materi.empty:
+                st.info("Belum ada materi pelajaran yang tersedia.")
+            else:
+                st.write("#### Daftar Modul Pelajaran:")
+                for idx, row in df_materi.iterrows():
+                    m_id = row['id']
+                    m_judul = row['judul']
+                    m_link = row['link']
+                    m_tgl = row['tanggal']
+                    
+                    is_completed = m_id in completed_ids
+                    
+                    col_status, col_info, col_link = st.columns([1, 4, 2])
+                    
+                    with col_status:
+                        check = st.checkbox("Selesai", value=is_completed, key=f"check_{m_id}")
+                        if check != is_completed:
+                            if check:
+                                execute_query("INSERT OR IGNORE INTO progress_siswa VALUES (?, ?)", (username, m_id))
+                            else:
+                                execute_query("DELETE FROM progress_siswa WHERE username=? AND materi_id=?", (username, m_id))
+                            st.rerun()
+                            
+                    with col_info:
+                        if is_completed:
+                            st.markdown(f"~~**{m_judul}**~~ ✅ *(Selesai)*")
+                        else:
+                            st.markdown(f"**{m_judul}**")
+                        st.caption(f"Diunggah: {m_tgl}")
+                        
+                    with col_link:
+                        if m_link:
+                            st.link_button("📖 Buka Materi", m_link)
+                        else:
+                            st.caption("Link belum tersedia")
+                    
+                    st.divider()
                 
         elif menu_siswa == "Kumpul Tugas":
-            st.subheader("Form Pengumpulan Tugas")
+            st.subheader("Form Pengumpulkan Tugas")
             judul_tugas = st.text_input("Judul Tugas")
             link_tugas = st.text_input("Link Tugas (Google Drive / GitHub / PDF)")
             
