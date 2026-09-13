@@ -15,7 +15,7 @@ def init_db():
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     
-    # Buat Tabel Users (Ditambahkan kolom status: 'Aktif' / 'Terkunci')
+    # Buat Tabel Users
     c.execute('''
         CREATE TABLE IF NOT EXISTS users (
             username TEXT PRIMARY KEY,
@@ -56,13 +56,12 @@ def init_db():
         )
     ''')
     
-    # Migrasi Kolom status jika tabel lama belum punya
     try:
         c.execute("ALTER TABLE users ADD COLUMN status TEXT DEFAULT 'Aktif'")
     except:
         pass
 
-    # Inisialisasi Akun Bawaan (Super Admin & Siswa Contoh)
+    # Inisialisasi Akun Bawaan
     c.execute("SELECT COUNT(*) FROM users")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO users VALUES ('guru1', '12345', 'Pak Budi (Super Admin)', 'Super Admin', 'Aktif')")
@@ -195,7 +194,6 @@ if not st.session_state['logged_in']:
         if st.button("Daftar Sekarang"):
             if reg_username and reg_password and reg_nama:
                 try:
-                    # Akun baru didaftarkan dengan status 'Terkunci' menunggu persetujuan guru
                     execute_query("INSERT INTO users VALUES (?, ?, ?, 'Siswa', 'Terkunci')", (reg_username, reg_password, reg_nama))
                     st.success("🎉 Pendaftaran berhasil! Akun Anda sedang menunggu persetujuan dari Guru. Silakan beri tahu Guru Anda.")
                 except Exception as e:
@@ -211,10 +209,8 @@ else:
     role = st.session_state['user_info'].get('role', 'Siswa')
     nama = st.session_state['user_info'].get('nama', 'User')
     
-    # Cek status Super Admin
     is_super_admin = (username == 'guru1') or (role == 'Super Admin')
     
-    # Sidebar Navigation
     st.sidebar.title(f"Selamat Datang, {nama}!")
     st.sidebar.write(f"**Hak Akses:** {'Super Admin 🔑' if is_super_admin else role}")
     
@@ -236,7 +232,6 @@ else:
             
         menu_guru = st.selectbox("Pilih Menu", menu_options)
         
-        # --- TABEL MATERI DENGAN TAMPILAN BERSIH ---
         if menu_guru == "Daftar Materi":
             st.subheader("Materi Pelajaran Aktif")
             df_materi = run_query("SELECT id, judul, link, tanggal FROM materi")
@@ -269,7 +264,6 @@ else:
                 else:
                     st.warning("Judul materi wajib diisi!")
 
-        # --- MENU KELOLA & KUNCI USER (PERSETUJUAN AKUN) ---
         elif menu_guru == "🔒 Kelola & Kunci User":
             st.subheader("👥 Kelola Status & Persetujuan Akun Siswa")
             st.caption("Guru dapat mengaktifkan (menyetujui), mengunci, atau menghapus akun siswa di bawah ini.")
@@ -315,7 +309,6 @@ else:
                             
                     st.divider()
 
-        # --- MENU EDIT MANUAL (SUPER ADMIN) ---
         elif menu_guru == "✏️ Edit Manual Materi" and is_super_admin:
             st.subheader("✏️ Edit Manual Data Materi (Super Admin)")
             df_materi = run_query("SELECT id, judul, link, tanggal FROM materi")
@@ -335,7 +328,6 @@ else:
                 st.success("Perubahan data materi berhasil disimpan!")
                 st.rerun()
 
-        # --- MENU HAPUS MATERI (SUPER ADMIN) ---
         elif menu_guru == "🗑️ Hapus Materi" and is_super_admin:
             st.subheader("🗑️ Hapus Materi Pelajaran")
             df_materi = run_query("SELECT * FROM materi")
@@ -406,7 +398,8 @@ else:
                     col_status, col_info, col_link = st.columns([1, 4, 2])
                     
                     with col_status:
-                        check = st.checkbox("Selesai", value=is_completed, key=f"check_{m_id}")
+                        # Menggunakan gabungan m_id dan idx agar key selalu unik
+                        check = st.checkbox("Selesai", value=is_completed, key=f"check_{m_id}_{idx}")
                         if check != is_completed:
                             if check:
                                 execute_query("INSERT OR IGNORE INTO progress_siswa VALUES (?, ?)", (username, m_id))
@@ -422,7 +415,7 @@ else:
                         st.caption(f"Diunggah: {m_tgl}")
                         
                     with col_link:
-                        if m_link:
+                        if m_link and str(m_link).strip() != "":
                             st.link_button("📖 Buka Materi", m_link)
                         else:
                             st.caption("Link belum tersedia")
