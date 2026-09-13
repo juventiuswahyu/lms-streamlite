@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import base64
 
 # -----------------------------------------------------------------------------
 # 1. KONFIGURASI DAN KONEKSI DATABASE LOKAL (SQLITE)
@@ -73,6 +74,15 @@ def execute_query(query, params=()):
     conn.commit()
     conn.close()
 
+def get_image_base64(path):
+    """Fungsi pembantu untuk meletakkan gambar di tengah menggunakan HTML"""
+    try:
+        with open(path, "rb") as image_file:
+            encoded_string = base64.b64encode(image_file.read()).decode()
+        return f"data:image/png;base64,{encoded_string}"
+    except:
+        return None
+
 # -----------------------------------------------------------------------------
 # 2. INISIALISASI SESSION STATE (STATUS LOGIN)
 # -----------------------------------------------------------------------------
@@ -82,23 +92,34 @@ if 'user_info' not in st.session_state:
     st.session_state['user_info'] = {}
 
 # -----------------------------------------------------------------------------
-# 3. HALAMAN LOGIN & REGISTRASI (LOGO DI PERBESAR & CENTER)
+# 3. HALAMAN LOGIN & REGISTRASI (LOGO & TEKS FULL CENTER)
 # -----------------------------------------------------------------------------
 if not st.session_state['logged_in']:
     
-    # Membuat Layout Center untuk Logo dan Judul
-    col_left, col_center, col_right = st.columns([1, 2, 1])
+    img_base64 = get_image_base64("Logo.png")
     
-    with col_center:
-        try:
-            # Memanggil Logo.png (Ukuran diperbesar menjadi 250px dan di-center)
-            st.image("Logo.png", width=250, use_container_width=False)
-        except:
-            st.markdown("<h1 style='text-align: center;'>🎓</h1>", unsafe_allow_html=True)
-            
-        # Judul di bawah logo rata tengah
+    if img_base64:
         st.markdown(
-            "<h2 style='text-align: center; margin-top: 15px;'>LMS Sertifikasi Bismind<br>Universitas Karangturi Semarang</h2>", 
+            f"""
+            <div style="text-align: center;">
+                <img src="{img_base64}" width="260" style="margin-bottom: 10px;">
+                <h2 style="margin-top: 5px; font-weight: 700; color: #1E1E1E;">
+                    LMS Sertifikasi Bismind<br>Universitas Karangturi Semarang
+                </h2>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:
+        st.markdown(
+            """
+            <div style="text-align: center;">
+                <h1 style="font-size: 80px; margin-bottom: 0;">🎓</h1>
+                <h2 style="margin-top: 5px; font-weight: 700;">
+                    LMS Sertifikasi Bismind<br>Universitas Karangturi Semarang
+                </h2>
+            </div>
+            """,
             unsafe_allow_html=True
         )
         
