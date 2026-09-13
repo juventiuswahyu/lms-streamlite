@@ -51,7 +51,7 @@ def init_db():
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO users VALUES ('guru1', '12345', 'Pak Budi', 'Guru')")
         c.execute("INSERT INTO users VALUES ('siswa1', '12345', 'Siti', 'Siswa')")
-        c.execute("INSERT INTO materi (judul, link, tanggal) VALUES ('Materi Pengenalan Bismind', 'https://drive.google.com', '2026-09-13')")
+        c.execute("INSERT INTO materi (judul, link, tanggal) VALUES ('Modul 1 Sertifikasi Bismind', 'https://drive.google.com', '2026-09-13')")
         conn.commit()
         
     conn.close()
@@ -67,7 +67,7 @@ def run_query(query, params=()):
     return df
 
 def execute_query(query, params=()):
-    """Fungsi untuk menambah/mengubah data"""
+    """Fungsi untuk menambah/mengubah/menghapus data"""
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
     c.execute(query, params)
@@ -92,7 +92,7 @@ if 'user_info' not in st.session_state:
     st.session_state['user_info'] = {}
 
 # -----------------------------------------------------------------------------
-# 3. HALAMAN LOGIN & REGISTRASI (FONT LEBIH TEGAS)
+# 3. HALAMAN LOGIN & REGISTRASI
 # -----------------------------------------------------------------------------
 if not st.session_state['logged_in']:
     
@@ -202,7 +202,7 @@ else:
         st.title("👨‍🏫 Dashboard Guru")
         st.caption("LMS Sertifikasi Bismind - Universitas Karangturi Semarang")
         
-        menu_guru = st.selectbox("Pilih Menu Guru", ["Daftar Materi", "Tambah Materi", "Daftar Tugas Siswa"])
+        menu_guru = st.selectbox("Pilih Menu Guru", ["Daftar Materi", "Tambah Materi", "Kelola / Hapus Materi", "Daftar Tugas Siswa"])
         
         if menu_guru == "Daftar Materi":
             st.subheader("Materi Pelajaran Aktif")
@@ -218,6 +218,38 @@ else:
             if st.button("Simpan Materi"):
                 execute_query("INSERT INTO materi (judul, link, tanggal) VALUES (?, ?, ?)", (judul, link, str(tgl)))
                 st.success("Materi berhasil ditambahkan!")
+                st.rerun()
+
+        elif menu_guru == "Kelola / Hapus Materi":
+            st.subheader("Hapus / Edit Materi")
+            df_materi = run_query("SELECT * FROM materi")
+            
+            if df_materi.empty:
+                st.info("Belum ada materi yang tersedia.")
+            else:
+                # Pilih materi berdasarkan judul
+                materi_list = df_materi['judul'].tolist()
+                pilihan_materi = st.selectbox("Pilih Materi yang Ingin Dikelola", materi_list)
+                
+                selected_row = df_materi[df_materi['judul'] == pilihan_materi].iloc[0]
+                
+                col_edit, col_delete = st.columns(2)
+                
+                with col_delete:
+                    st.write("### 🗑️ Hapus Materi")
+                    if st.button(f"Hapus Materi '{pilihan_materi}'", type="primary"):
+                        execute_query("DELETE FROM materi WHERE id=?", (int(selected_row['id']),))
+                        st.success("Materi berhasil dihapus!")
+                        st.rerun()
+
+                with col_edit:
+                    st.write("### ✏️ Edit Materi")
+                    edit_judul = st.text_input("Judul Baru", value=selected_row['judul'])
+                    edit_link = st.text_input("Link Baru", value=selected_row['link'])
+                    if st.button("Update Materi"):
+                        execute_query("UPDATE materi SET judul=?, link=? WHERE id=?", (edit_judul, edit_link, int(selected_row['id'])))
+                        st.success("Materi berhasil diperbarui!")
+                        st.rerun()
                 
         elif menu_guru == "Daftar Tugas Siswa":
             st.subheader("Tugas yang Dikumpulkan Siswa")
